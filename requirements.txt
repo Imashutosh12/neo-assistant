@@ -65,4 +65,4 @@ Wikipedia-API==0.7.1
 
 # Added to fix build issues
 setuptools>=65.0
-wheel
+wheel>=0.38.4
