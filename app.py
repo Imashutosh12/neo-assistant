@@ -3,7 +3,6 @@ from googleapiclient.discovery import build
 from PyPDF2 import PdfReader
 from flask import Flask, render_template, jsonify, request, redirect, session, flash
 from flask_cors import CORS
-import pyttsx3
 import datetime
 import webbrowser
 import wikipediaapi
@@ -25,6 +24,7 @@ import threading
 
 # Set the environment variable for Google Cloud credentials
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx', 'png', 'jpg', 'jpeg'}
 
@@ -33,23 +33,22 @@ app.secret_key = 'your_random_secret_key_12345'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 CORS(app)
 
-# Ensure the upload directory exists
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-
-# Initialize pyttsx3 for text-to-speech
-engine = pyttsx3.init()
-
+# Only initialize pyttsx3 if NOT on Render
+engine = None
+if os.getenv("RENDER") is None:
+    import pyttsx3
+    engine = pyttsx3.init()
+else:
+    print("Text-to-speech disabled on Render")
+    
 # Initialize Vertex AI
 vertexai.init(project="gemini-443008", location="us-central1")
 model = GenerativeModel("gemini-1.5-flash-002")
-
 generation_config = {
     "max_output_tokens": 8192,
     "temperature": 1,
     "top_p": 0.95,
 }
-
 safety_settings = [
     SafetySetting(
         category=SafetySetting.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
@@ -68,12 +67,11 @@ safety_settings = [
         threshold=SafetySetting.HarmBlockThreshold.OFF
     ),
 ]
-
 # Initialize the Vision API client
 vision_client = vision.ImageAnnotatorClient()
-
 uploaded_files = []  # Global variable to store uploaded file paths
 document_cache = {}  # Global cache to store document content
+
 
 def generate_response(prompt, context=""):
     responses = model.generate_content(
@@ -84,17 +82,22 @@ def generate_response(prompt, context=""):
     )
     return "".join(response.text for response in responses)
 
+
 def speak(text):
-    engine.say(text)
-    engine.runAndWait()
+    if engine:
+        engine.say(text)
+        engine.runAndWait()
+    else:
+        print(f"TTS disabled: {text}")
+
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
 def read_file(file_path):
     ext = file_path.rsplit('.', 1)[1].lower()
     text = ""
-
     if ext == 'pdf':
         text = extract_text_from_pdf(file_path)
         if not text.strip():  # If the PDF doesn't contain readable text
@@ -114,6 +117,7 @@ def read_file(file_path):
                 text += file.read()
     return text
 
+
 def extract_text_from_pdf(file_path):
     try:
         reader = PdfReader(file_path)
@@ -126,6 +130,7 @@ def extract_text_from_pdf(file_path):
         print(f"Error reading PDF: {e}")
         return ""
 
+
 def extract_text_from_image(image_path):
     with io.open(image_path, 'rb') as image_file:
         content = image_file.read()
@@ -134,9 +139,11 @@ def extract_text_from_image(image_path):
     texts = response.text_annotations
     return texts[0].description if texts else ""
 
+
 @app.route('/')
 def home():
     return render_template('index.html')
+
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -152,7 +159,6 @@ def upload_file():
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            
             # Check if file already exists
             if os.path.exists(file_path):
                 uploaded_files.append(file_path)
@@ -161,7 +167,6 @@ def upload_file():
                 file.save(file_path)
                 uploaded_files.append(file_path)
                 print(f"File {filename} saved.")
-
     # Read and cache file content
     threads = []
     for file_path in uploaded_files:
@@ -169,12 +174,11 @@ def upload_file():
         thread = threading.Thread(target=cache_file_content, args=(file_path,))
         thread.start()
         threads.append(thread)
-    
     # Wait for all threads to finish
     for thread in threads:
         thread.join()
-    
     return jsonify({'response': 'Files successfully uploaded or accessed from cache', 'file_paths': uploaded_files})
+
 
 def cache_file_content(file_path):
     content = read_file(file_path)
@@ -187,13 +191,12 @@ def ask():
     user_input = request.json.get('input')
     print(f"Received command: {user_input}")  # Debugging
     response = ''
-
     if 'hello' in user_input or 'hey' in user_input:
         response = "Hello! How can I assist you?"
     elif 'who are you' in user_input:
         response = "I am NEO, your virtual assistant."
     elif 'open youtube' in user_input:
-        webbrowser.open("https://youtube.com")
+        webbrowser.open("https://youtube.com ")
         response = "Opening YouTube..."
     elif 'time' in user_input:
         current_time = datetime.datetime.now().strftime("%H:%M")
@@ -211,7 +214,7 @@ def ask():
     elif 'play' in user_input and 'video' in user_input:
         query = user_input.replace('play', '').replace('video', '').strip()
         response = play_video(query)
-    
+
     elif 'search google' in user_input:
         query = user_input.replace('search google', '').strip()
         response = search_google(query)
@@ -226,12 +229,13 @@ def ask():
         for file_path in uploaded_files:
             context += document_cache.get(file_path, '')
         response = generate_response(user_input, context)
-
     print(f"Generated response: {response}")  # Debugging
     return jsonify({'response': response})
 
+
 from dotenv import load_dotenv
 load_dotenv()
+
 
 def get_weather(location):
     api_key = os.getenv("OPENWEATHER_API_KEY")
@@ -258,6 +262,7 @@ def get_weather(location):
     )
     return f"The current temperature in {location} is {temp}°C with {condition}. {final_data}"
 
+
 def play_video(query):
     youtube = build('youtube', 'v3', developerKey=os.getenv("YOUTUBE_API_KEY"))
     request = youtube.search().list(
@@ -268,9 +273,10 @@ def play_video(query):
         safeSearch='strict'
     )
     response = request.execute()
-    video_url = f"https://www.youtube.com/watch?v={response['items'][0]['id']['videoId']}"
+    video_url = f" https://www.youtube.com/watch?v={response['items'][0]['id']['videoId']}"
     webbrowser.open(video_url)
     return f"Playing {query} video from YouTube."
+
 
 def play_spotify_song(query):
     try:
@@ -297,10 +303,12 @@ def play_spotify_song(query):
     except spotipy.exceptions.SpotifyException as e:
         return f"Spotify error: {e}"
 
+
 def search_google(query):
-    search_url = f"https://www.google.com/search?q={query}"
+    search_url = f" https://www.google.com/search?q={query}"
     webbrowser.open(search_url)
     return f"Searching Google for {query}."
+
 
 def search_wikipedia(query):
     wiki_wiki = wikipediaapi.Wikipedia(
@@ -312,11 +320,10 @@ def search_wikipedia(query):
         return page.summary[0:1000]
     else:
         return "Sorry, I couldn't find anything on Wikipedia for that query."
+
+
 port = int(os.environ.get("PORT", 5000))
 app.run(host="0.0.0.0", port=port)
-
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
-
-
