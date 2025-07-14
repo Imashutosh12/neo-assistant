@@ -6,7 +6,6 @@ from flask_cors import CORS
 import pyttsx3
 import datetime
 import webbrowser
-import pyautogui
 import wikipediaapi
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -212,18 +211,7 @@ def ask():
     elif 'play' in user_input and 'video' in user_input:
         query = user_input.replace('play', '').replace('video', '').strip()
         response = play_video(query)
-    elif 'increase brightness' in user_input:
-        pyautogui.hotkey('brightnessup')
-        response = "Increasing brightness."
-    elif 'decrease brightness' in user_input:
-        pyautogui.hotkey('brightnessdown')
-        response = "Decreasing brightness."
-    elif 'volume up' in user_input:
-        pyautogui.hotkey('volumeup')
-        response = "Turning up the volume."
-    elif 'volume down' in user_input:
-        pyautogui.hotkey('volumedown')
-        response = "Turning down the volume."
+    
     elif 'search google' in user_input:
         query = user_input.replace('search google', '').strip()
         response = search_google(query)
