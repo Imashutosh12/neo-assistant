@@ -25,8 +25,7 @@ import io
 import threading
 
 # Set the environment variable for Google Cloud credentials
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"C:\Users\ashut\Downloads\gemini-443008-862997cd04f2.json"
-
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx', 'png', 'jpg', 'jpeg'}
 
@@ -243,8 +242,12 @@ def ask():
     print(f"Generated response: {response}")  # Debugging
     return jsonify({'response': response})
 
+from dotenv import load_dotenv
+load_dotenv()
+
 def get_weather(location):
-    api = "https://api.openweathermap.org/data/2.5/weather?q=" + location + "&appid=06c921750b9a82d8f5d1294e1586276f&units=metric"
+    api_key = os.getenv("OPENWEATHER_API_KEY")
+    api = f"https://api.openweathermap.org/data/2.5/weather?q={location}&appid={api_key}&units=metric"
     json_data = requests.get(api).json()
     condition = json_data['weather'][0]['main']
     temp = int(json_data['main']['temp'])
@@ -268,7 +271,7 @@ def get_weather(location):
     return f"The current temperature in {location} is {temp}°C with {condition}. {final_data}"
 
 def play_video(query):
-    youtube = build('youtube', 'v3', developerKey='AIzaSyBtDd6RuZCLiE8NZXhk_V9vupEu7AFsEXs')
+    youtube = build('youtube', 'v3', developerKey=os.getenv("YOUTUBE_API_KEY"))
     request = youtube.search().list(
         part='snippet',
         type='video',
@@ -284,11 +287,11 @@ def play_video(query):
 def play_spotify_song(query):
     try:
         sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-            client_id='b6532f296ce0408d8ba5232341e4346c',
-            client_secret='46709b1946984a0c8b3fb861347eff74',
+            client_id=os.getenv("SPOTIFY_CLIENT_ID"),
+            client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
             redirect_uri='http://localhost:8888/callback',
             scope='user-library-read user-read-playback-state user-modify-playback-state',
-            show_dialog=True # Force the authentication dialog to appear
+            show_dialog=True
         ))
         results = sp.search(q=query, type='track', limit=1)
         if results['tracks']['items']:
