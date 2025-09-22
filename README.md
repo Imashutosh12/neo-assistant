@@ -1,4 +1,4 @@
-
+![System Workflow](./images/diagram1.png)
 
 # 🚀 AI-Powered Document & Image Processing Assistant
 
