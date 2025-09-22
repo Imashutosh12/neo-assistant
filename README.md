@@ -1,4 +1,5 @@
-[System Workflow](./images/system-architecture.png) 
+
+
 # 🚀 AI-Powered Document & Image Processing Assistant
 
 An end-to-end **full-stack AI assistant** that processes documents & images, performs OCR, leverages **Google Vertex AI (Gemini 1.5)** for intelligent analysis, and provides **query-based responses** via a clean web interface.
